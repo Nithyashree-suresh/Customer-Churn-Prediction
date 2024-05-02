@@ -1,6 +1,6 @@
 # Customer-Churn-Prediction
 
-This repository contains a detailed analysis of a bank customer dataset to predict customer churn. The project focuses on exploring various factors contributing to churn and developing predictive models using classification algorithms. Here I have also applied GridSearchCV to find the best hyperparameters for the models.
+This repository contains a detailed analysis of a bank customer dataset from Kaggle to predict customer churn at a particular Bank. The project focuses on exploring various factors contributing to churn and developing predictive models using classification algorithms. Here I have also applied GridSearchCV to find the best hyperparameters for the models.
 
 Project Overview:
 
