@@ -1,0 +1,830 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyN9bjh7bb491oKiWz6b/LJM",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/Nithyashree-suresh/Customer-Churn-Prediction/blob/main/Optimisation\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Import necessary libraries\n",
+        "import pandas as pd\n",
+        "from sklearn.model_selection import train_test_split\n",
+        "from sklearn.linear_model import LogisticRegression\n",
+        "from sklearn.metrics import accuracy_score, confusion_matrix, roc_auc_score\n",
+        "\n",
+        "# Load the data\n",
+        "url = 'https://raw.githubusercontent.com/ormarketing/b2b/master/data.csv'\n",
+        "data = pd.read_csv(url)\n",
+        "\n",
+        "# Display the first few rows to understand its structure\n",
+        "print(data.head())\n",
+        "\n",
+        "# Display summary statistics\n",
+        "print(data.describe())\n",
+        "\n",
+        "# Check for missing values\n",
+        "print(data.isnull().sum())\n",
+        "\n",
+        "# Display data types of each column\n",
+        "print(data.dtypes)\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "qrR_-Z5Z5Eq4",
+        "outputId": "9edcde7d-d110-40c3-e96e-5ec39ba93207"
+      },
+      "execution_count": 20,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "   ID Close Date Created Date  New Logo                         Type  \\\n",
+            "0   1    5/26/17       5/4/17         1       Direct - Cloud Product   \n",
+            "1   2   12/29/16     11/29/16         1  Partner - OnPremise Product   \n",
+            "2   3   12/29/16      12/9/16         1      Partner - Cloud Product   \n",
+            "3   4     9/9/16      4/20/16         1       Direct - Cloud Product   \n",
+            "4   5    9/22/16       9/1/16         1  Partner - OnPremise Product   \n",
+            "\n",
+            "               Stage Billing Plan    ACV   Discount Amount   Amount   \\\n",
+            "0        Closed Lost      3 Years  431370                     225000   \n",
+            "1  Closed Won - Paid      3 Years   22050             80850   147000   \n",
+            "2  Closed Won - Paid      3 Years   32750             43200    96000   \n",
+            "3  Closed Won - Paid      4 Years   36694             44800   128000   \n",
+            "4  Closed Won - Paid      3 Years   18700              9900    66000   \n",
+            "\n",
+            "   Net Amount   \n",
+            "0       225000  \n",
+            "1        66150  \n",
+            "2        52800  \n",
+            "3        83200  \n",
+            "4        56100  \n",
+            "                ID     New Logo\n",
+            "count  1505.000000  1505.000000\n",
+            "mean    753.000000     0.465781\n",
+            "std     434.600391     0.498993\n",
+            "min       1.000000     0.000000\n",
+            "25%     377.000000     0.000000\n",
+            "50%     753.000000     0.000000\n",
+            "75%    1129.000000     1.000000\n",
+            "max    1505.000000     1.000000\n",
+            "ID                     0\n",
+            "Close Date             0\n",
+            "Created Date           0\n",
+            "New Logo               0\n",
+            "Type                   0\n",
+            "Stage                  0\n",
+            "Billing Plan         525\n",
+            " ACV                  33\n",
+            " Discount Amount     837\n",
+            " Amount                0\n",
+            " Net Amount            0\n",
+            "dtype: int64\n",
+            "ID                    int64\n",
+            "Close Date           object\n",
+            "Created Date         object\n",
+            "New Logo              int64\n",
+            "Type                 object\n",
+            "Stage                object\n",
+            "Billing Plan         object\n",
+            " ACV                 object\n",
+            " Discount Amount     object\n",
+            " Amount              object\n",
+            " Net Amount          object\n",
+            "dtype: object\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Strip any leading or trailing whitespace from the column names\n",
+        "data.columns = data.columns.str.strip()\n",
+        "\n",
+        "# Convert date columns to datetime\n",
+        "data['Close Date'] = pd.to_datetime(data['Close Date'])\n",
+        "data['Created Date'] = pd.to_datetime(data['Created Date'])\n",
+        "\n",
+        "# Extract quarter from 'Close Date'\n",
+        "data['Quarter'] = data['Close Date'].dt.quarter\n",
+        "\n",
+        "# Convert numerical columns from object to appropriate numerical types\n",
+        "data['ACV'] = pd.to_numeric(data['ACV'].astype(str).str.replace(',', ''), errors='coerce')\n",
+        "data['Discount Amount'] = pd.to_numeric(data['Discount Amount'].astype(str).str.replace(',', ''), errors='coerce')\n",
+        "data['Amount'] = pd.to_numeric(data['Amount'].astype(str).str.replace(',', ''), errors='coerce')\n",
+        "data['Net Amount'] = pd.to_numeric(data['Net Amount'].astype(str).str.replace(',', ''), errors='coerce')\n",
+        "\n",
+        "# Handle missing values\n",
+        "# Fill missing values for 'Billing Plan' with the mode\n",
+        "data['Billing Plan'] = data['Billing Plan'].fillna(data['Billing Plan'].mode()[0])\n",
+        "\n",
+        "# Fill missing values for numerical columns with the median\n",
+        "data['ACV'] = data['ACV'].fillna(data['ACV'].median())\n",
+        "data['Discount Amount'] = data['Discount Amount'].fillna(data['Discount Amount'].median())\n",
+        "\n",
+        "# Check which columns still have missing values\n",
+        "print(data.isnull().sum())\n",
+        "\n",
+        "# If there are any remaining missing values, fill or drop them as appropriate\n",
+        "# For this example, we'll drop any remaining rows with missing values\n",
+        "data = data.dropna()\n",
+        "\n",
+        "# Ensure no missing values remain\n",
+        "assert data.isnull().sum().sum() == 0\n",
+        "\n",
+        "# Display the first few rows of the preprocessed data\n",
+        "print(data.head())\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "sehJq7oc9lF5",
+        "outputId": "8a251938-1033-4d53-e0b3-5d4867df3abf"
+      },
+      "execution_count": 24,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "ID                  0\n",
+            "Close Date          0\n",
+            "Created Date        0\n",
+            "New Logo            0\n",
+            "Type                0\n",
+            "Stage               0\n",
+            "Billing Plan        0\n",
+            "ACV                 0\n",
+            "Discount Amount     0\n",
+            "Amount             49\n",
+            "Net Amount         49\n",
+            "Quarter             0\n",
+            "dtype: int64\n",
+            "   ID Close Date Created Date  New Logo                         Type  \\\n",
+            "0   1 2017-05-26   2017-05-04         1       Direct - Cloud Product   \n",
+            "1   2 2016-12-29   2016-11-29         1  Partner - OnPremise Product   \n",
+            "2   3 2016-12-29   2016-12-09         1      Partner - Cloud Product   \n",
+            "3   4 2016-09-09   2016-04-20         1       Direct - Cloud Product   \n",
+            "4   5 2016-09-22   2016-09-01         1  Partner - OnPremise Product   \n",
+            "\n",
+            "               Stage Billing Plan       ACV  Discount Amount    Amount  \\\n",
+            "0        Closed Lost      3 Years  431370.0          16650.0  225000.0   \n",
+            "1  Closed Won - Paid      3 Years   22050.0          80850.0  147000.0   \n",
+            "2  Closed Won - Paid      3 Years   32750.0          43200.0   96000.0   \n",
+            "3  Closed Won - Paid      4 Years   36694.0          44800.0  128000.0   \n",
+            "4  Closed Won - Paid      3 Years   18700.0           9900.0   66000.0   \n",
+            "\n",
+            "   Net Amount  Quarter  \n",
+            "0    225000.0        2  \n",
+            "1     66150.0        4  \n",
+            "2     52800.0        4  \n",
+            "3     83200.0        3  \n",
+            "4     56100.0        3  \n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Fill remaining missing values in 'Amount' and 'Net Amount' with their respective medians\n",
+        "data['Amount'] = data['Amount'].fillna(data['Amount'].median())\n",
+        "data['Net Amount'] = data['Net Amount'].fillna(data['Net Amount'].median())\n",
+        "\n",
+        "# Ensure no missing values remain\n",
+        "assert data.isnull().sum().sum() == 0\n",
+        "\n",
+        "# Display the first few rows of the preprocessed data\n",
+        "print(data.head())\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "nocFx9Py95Qe",
+        "outputId": "e5d5e9b5-4c3d-4324-ea46-1dffa70b528b"
+      },
+      "execution_count": 25,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "   ID Close Date Created Date  New Logo                         Type  \\\n",
+            "0   1 2017-05-26   2017-05-04         1       Direct - Cloud Product   \n",
+            "1   2 2016-12-29   2016-11-29         1  Partner - OnPremise Product   \n",
+            "2   3 2016-12-29   2016-12-09         1      Partner - Cloud Product   \n",
+            "3   4 2016-09-09   2016-04-20         1       Direct - Cloud Product   \n",
+            "4   5 2016-09-22   2016-09-01         1  Partner - OnPremise Product   \n",
+            "\n",
+            "               Stage Billing Plan       ACV  Discount Amount    Amount  \\\n",
+            "0        Closed Lost      3 Years  431370.0          16650.0  225000.0   \n",
+            "1  Closed Won - Paid      3 Years   22050.0          80850.0  147000.0   \n",
+            "2  Closed Won - Paid      3 Years   32750.0          43200.0   96000.0   \n",
+            "3  Closed Won - Paid      4 Years   36694.0          44800.0  128000.0   \n",
+            "4  Closed Won - Paid      3 Years   18700.0           9900.0   66000.0   \n",
+            "\n",
+            "   Net Amount  Quarter  \n",
+            "0    225000.0        2  \n",
+            "1     66150.0        4  \n",
+            "2     52800.0        4  \n",
+            "3     83200.0        3  \n",
+            "4     56100.0        3  \n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.model_selection import train_test_split\n",
+        "\n",
+        "# Split the data into training and hold-out samples (80-20 split)\n",
+        "train_data, holdout_data = train_test_split(data, test_size=0.2, random_state=42)\n",
+        "\n",
+        "# Display the sizes of the training and hold-out samples\n",
+        "print(f\"Training data size: {train_data.shape}\")\n",
+        "print(f\"Hold-out data size: {holdout_data.shape}\")\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "dIHeg_oq-AYK",
+        "outputId": "ec965e42-d5fb-45d6-a691-2589df25295f"
+      },
+      "execution_count": 26,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Training data size: (1164, 12)\n",
+            "Hold-out data size: (291, 12)\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Create a binary variable for sale success\n",
+        "train_data['sale_success'] = train_data['Stage'].apply(lambda x: 1 if 'Closed Won' in x else 0)\n",
+        "holdout_data['sale_success'] = holdout_data['Stage'].apply(lambda x: 1 if 'Closed Won' in x else 0)\n",
+        "\n",
+        "# Define the model formula with the binary outcome\n",
+        "model_formula = 'sale_success ~ Discount_Amount + Amount + Quarter + Billing_Plan + C(Type)'\n",
+        "\n",
+        "# Fit the logit model\n",
+        "logit_model = logit(model_formula, data=train_data).fit()\n",
+        "\n",
+        "# Display the model summary\n",
+        "print(logit_model.summary())\n",
+        "\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "-3YwwtFd-IOu",
+        "outputId": "0d813470-376c-4e48-e327-c6d8035b267b"
+      },
+      "execution_count": 29,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Warning: Maximum number of iterations has been exceeded.\n",
+            "         Current function value: 0.586888\n",
+            "         Iterations: 35\n",
+            "                           Logit Regression Results                           \n",
+            "==============================================================================\n",
+            "Dep. Variable:           sale_success   No. Observations:                 1164\n",
+            "Model:                          Logit   Df Residuals:                     1150\n",
+            "Method:                           MLE   Df Model:                           13\n",
+            "Date:                Sun, 02 Jun 2024   Pseudo R-squ.:                  0.1108\n",
+            "Time:                        17:22:44   Log-Likelihood:                -683.14\n",
+            "converged:                      False   LL-Null:                       -768.25\n",
+            "Covariance Type:            nonrobust   LLR p-value:                 1.663e-29\n",
+            "==========================================================================================================\n",
+            "                                             coef    std err          z      P>|z|      [0.025      0.975]\n",
+            "----------------------------------------------------------------------------------------------------------\n",
+            "Intercept                                  0.2496      0.466      0.536      0.592      -0.663       1.162\n",
+            "Billing_Plan[T.3 Months]                  13.5627    952.528      0.014      0.989   -1853.358    1880.484\n",
+            "Billing_Plan[T.3 Years]                   -1.9003      0.325     -5.852      0.000      -2.537      -1.264\n",
+            "Billing_Plan[T.4 Years]                    0.5827      1.167      0.499      0.618      -1.704       2.870\n",
+            "Billing_Plan[T.5 Years]                    0.4468      1.106      0.404      0.686      -1.722       2.615\n",
+            "Billing_Plan[T.9 Months]                 -14.1551    984.132     -0.014      0.989   -1943.018    1914.708\n",
+            "Billing_Plan[T.Annual]                    -1.7837      0.336     -5.305      0.000      -2.443      -1.125\n",
+            "Billing_Plan[T.Quarterly]                 14.3725   1192.482      0.012      0.990   -2322.850    2351.595\n",
+            "C(Type)[T.Direct - OnPremise Product]     -0.5113      0.343     -1.488      0.137      -1.185       0.162\n",
+            "C(Type)[T.Partner - Cloud Product]         0.7373      0.341      2.160      0.031       0.068       1.406\n",
+            "C(Type)[T.Partner - OnPremise Product]     0.5331      0.317      1.682      0.093      -0.088       1.154\n",
+            "Discount_Amount                         1.857e-05   3.72e-06      4.994      0.000    1.13e-05    2.59e-05\n",
+            "Amount                                 -6.354e-07   8.01e-07     -0.793      0.428   -2.21e-06    9.35e-07\n",
+            "Quarter                                    0.1108      0.060      1.847      0.065      -0.007       0.228\n",
+            "==========================================================================================================\n"
+          ]
+        },
+        {
+          "output_type": "stream",
+          "name": "stderr",
+          "text": [
+            "/usr/local/lib/python3.10/dist-packages/statsmodels/base/model.py:607: ConvergenceWarning: Maximum Likelihood optimization failed to converge. Check mle_retvals\n",
+            "  warnings.warn(\"Maximum Likelihood optimization failed to \"\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Convert boolean columns to integers\n",
+        "bool_cols = X.select_dtypes(include='bool').columns\n",
+        "X[bool_cols] = X[bool_cols].astype(int)\n",
+        "\n",
+        "# Calculate VIF for each feature\n",
+        "vif = pd.DataFrame()\n",
+        "vif[\"Variable\"] = X.columns\n",
+        "vif[\"VIF\"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]\n",
+        "\n",
+        "print(vif)\n",
+        "\n",
+        "\n",
+        "\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "Fr2WZi9y-6bw",
+        "outputId": "f83d8a5e-2037-4e54-fd50-bd89891448b7"
+      },
+      "execution_count": 34,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "                            Variable       VIF\n",
+            "0                    Discount_Amount  2.807275\n",
+            "1                             Amount  3.369297\n",
+            "2                            Quarter  5.357291\n",
+            "3              Billing_Plan_3 Months  1.012282\n",
+            "4               Billing_Plan_3 Years  8.379750\n",
+            "5               Billing_Plan_4 Years  1.109117\n",
+            "6               Billing_Plan_5 Years  1.208898\n",
+            "7              Billing_Plan_9 Months  1.014328\n",
+            "8                Billing_Plan_Annual  4.018494\n",
+            "9             Billing_Plan_Quarterly  1.034820\n",
+            "10   Type_Direct - OnPremise Product  3.761106\n",
+            "11      Type_Partner - Cloud Product  2.876035\n",
+            "12  Type_Partner - OnPremise Product  6.675746\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Remove variables with high VIF (as an example, assuming 'Amount' and some 'Billing_Plan' variables have high VIF)\n",
+        "simplified_formula = 'sale_success ~ Discount_Amount + C(Type)'\n",
+        "\n",
+        "# Fit the simplified logit model\n",
+        "simplified_logit_model = logit(simplified_formula, data=train_data).fit(maxiter=100)\n",
+        "\n",
+        "# Display the simplified model summary\n",
+        "print(simplified_logit_model.summary())\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "xzabxkWS_lFw",
+        "outputId": "d568dadb-b4e1-4108-e3f3-2c5d717de509"
+      },
+      "execution_count": 36,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Optimization terminated successfully.\n",
+            "         Current function value: 0.615700\n",
+            "         Iterations 7\n",
+            "                           Logit Regression Results                           \n",
+            "==============================================================================\n",
+            "Dep. Variable:           sale_success   No. Observations:                 1164\n",
+            "Model:                          Logit   Df Residuals:                     1159\n",
+            "Method:                           MLE   Df Model:                            4\n",
+            "Date:                Sun, 02 Jun 2024   Pseudo R-squ.:                 0.06713\n",
+            "Time:                        17:28:56   Log-Likelihood:                -716.67\n",
+            "converged:                       True   LL-Null:                       -768.25\n",
+            "Covariance Type:            nonrobust   LLR p-value:                 2.099e-21\n",
+            "==========================================================================================================\n",
+            "                                             coef    std err          z      P>|z|      [0.025      0.975]\n",
+            "----------------------------------------------------------------------------------------------------------\n",
+            "Intercept                                 -1.2968      0.310     -4.182      0.000      -1.905      -0.689\n",
+            "C(Type)[T.Direct - OnPremise Product]     -0.3907      0.333     -1.173      0.241      -1.043       0.262\n",
+            "C(Type)[T.Partner - Cloud Product]         0.7046      0.333      2.118      0.034       0.053       1.357\n",
+            "C(Type)[T.Partner - OnPremise Product]     0.6153      0.309      1.990      0.047       0.009       1.221\n",
+            "Discount_Amount                          1.71e-05    3.3e-06      5.182      0.000    1.06e-05    2.36e-05\n",
+            "==========================================================================================================\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Interpretation:\n",
+        "\n",
+        "• Intercept: The log-odds of sale success when all other variables are zero. The negative coefficient suggests lower odds of sale success at the baseline.\n",
+        "\n",
+        "• C(Type)[T.Direct - OnPremise Product]: This coefficient is not statistically significant (P>|z| = 0.241), meaning this type doesn't have a significant effect on sale success compared to the baseline (Direct - Cloud Product).\n",
+        "\n",
+        "• C(Type)[T.Partner - Cloud Product]: This is statistically significant (P>|z| = 0.034), suggesting higher odds of sale success for this type compared to the baseline.\n",
+        "\n",
+        "• C(Type)[T.Partner - OnPremise Product]: This is also statistically significant (P>|z| = 0.047), indicating higher odds of sale success for this type compared to the baseline.\n",
+        "\n",
+        "• Discount_Amount: The coefficient is positive and highly significant (P>|z| < 0.000), suggesting that higher discounts are associated with higher odds of sale success."
+      ],
+      "metadata": {
+        "id": "R61uGD7CHaOR"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Subset data for \"Direct - OnPremise Product\"\n",
+        "subset_direct_onprem = train_data[train_data['Type'] == 'Direct - OnPremise Product']\n",
+        "\n",
+        "# Fit the logit model\n",
+        "model_formula = 'sale_success ~ Discount_Amount'\n",
+        "logit_model_direct_onprem = logit(model_formula, data=subset_direct_onprem).fit()\n",
+        "\n",
+        "# Display the model summary\n",
+        "print(\"Logit Model for 'Direct - OnPremise Product'\")\n",
+        "print(logit_model_direct_onprem.summary())\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "B11IL6wsEH0t",
+        "outputId": "97db23cf-5157-463d-ba7e-dd455b9df28e"
+      },
+      "execution_count": 44,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Optimization terminated successfully.\n",
+            "         Current function value: 0.498102\n",
+            "         Iterations 6\n",
+            "Logit Model for 'Direct - OnPremise Product'\n",
+            "                           Logit Regression Results                           \n",
+            "==============================================================================\n",
+            "Dep. Variable:           sale_success   No. Observations:                  288\n",
+            "Model:                          Logit   Df Residuals:                      286\n",
+            "Method:                           MLE   Df Model:                            1\n",
+            "Date:                Sun, 02 Jun 2024   Pseudo R-squ.:                 0.01768\n",
+            "Time:                        17:47:55   Log-Likelihood:                -143.45\n",
+            "converged:                       True   LL-Null:                       -146.04\n",
+            "Covariance Type:            nonrobust   LLR p-value:                   0.02305\n",
+            "===================================================================================\n",
+            "                      coef    std err          z      P>|z|      [0.025      0.975]\n",
+            "-----------------------------------------------------------------------------------\n",
+            "Intercept          -1.6090      0.209     -7.698      0.000      -2.019      -1.199\n",
+            "Discount_Amount  1.292e-05   7.85e-06      1.645      0.100   -2.48e-06    2.83e-05\n",
+            "===================================================================================\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Interpretation:\n",
+        "\n",
+        "Interpretation:\n",
+        "\n",
+        "• Intercept: The log-odds of sale success for Direct - OnPremise Product when Discount_Amount is zero.\n",
+        "\n",
+        "• Discount_Amount: This coefficient is not statistically significant (P>|z| = 0.100), suggesting that the discount amount does not significantly affect sale success for this product type.\n"
+      ],
+      "metadata": {
+        "id": "pjYh6WZIHtTA"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Subset data for \"Partner - Cloud Product\"\n",
+        "subset_partner_cloud = train_data[train_data['Type'] == 'Partner - Cloud Product']\n",
+        "\n",
+        "# Fit the logit model\n",
+        "model_formula = 'sale_success ~ Discount_Amount'\n",
+        "logit_model_partner_cloud = logit(model_formula, data=subset_partner_cloud).fit()\n",
+        "\n",
+        "# Display the model summary\n",
+        "print(\"Logit Model for 'Partner - Cloud Product'\")\n",
+        "print(logit_model_partner_cloud.summary())\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "aeB-qFbxEMun",
+        "outputId": "51da2ec2-f676-4d00-d66f-473a0d045c68"
+      },
+      "execution_count": 45,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Optimization terminated successfully.\n",
+            "         Current function value: 0.650959\n",
+            "         Iterations 7\n",
+            "Logit Model for 'Partner - Cloud Product'\n",
+            "                           Logit Regression Results                           \n",
+            "==============================================================================\n",
+            "Dep. Variable:           sale_success   No. Observations:                  193\n",
+            "Model:                          Logit   Df Residuals:                      191\n",
+            "Method:                           MLE   Df Model:                            1\n",
+            "Date:                Sun, 02 Jun 2024   Pseudo R-squ.:                 0.06041\n",
+            "Time:                        17:48:08   Log-Likelihood:                -125.64\n",
+            "converged:                       True   LL-Null:                       -133.71\n",
+            "Covariance Type:            nonrobust   LLR p-value:                 5.836e-05\n",
+            "===================================================================================\n",
+            "                      coef    std err          z      P>|z|      [0.025      0.975]\n",
+            "-----------------------------------------------------------------------------------\n",
+            "Intercept          -0.5828      0.212     -2.755      0.006      -0.997      -0.168\n",
+            "Discount_Amount  1.675e-05    5.5e-06      3.045      0.002    5.97e-06    2.75e-05\n",
+            "===================================================================================\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Interpretation:\n",
+        "\n",
+        "• Intercept: The log-odds of sale success for Partner - Cloud Product when Discount_Amount is zero.\n",
+        "\n",
+        "• Discount_Amount: The coefficient is positive and statistically significant (P>|z| = 0.002), indicating that higher discounts are associated with higher odds of sale success for this product type."
+      ],
+      "metadata": {
+        "id": "zbTr9ZmNH9sH"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Subset data for \"Partner - OnPremise Product\"\n",
+        "subset_partner_onprem = train_data[train_data['Type'] == 'Partner - OnPremise Product']\n",
+        "\n",
+        "# Fit the logit model\n",
+        "model_formula = 'sale_success ~ Discount_Amount'\n",
+        "logit_model_partner_onprem = logit(model_formula, data=subset_partner_onprem).fit()\n",
+        "\n",
+        "# Display the model summary\n",
+        "print(\"Logit Model for 'Partner - OnPremise Product'\")\n",
+        "print(logit_model_partner_onprem.summary())\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        },
+        "id": "SQYdGoGYEPUb",
+        "outputId": "49de8359-2ea0-4242-c6d1-7faed3eb857e"
+      },
+      "execution_count": 46,
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Optimization terminated successfully.\n",
+            "         Current function value: 0.661715\n",
+            "         Iterations 7\n",
+            "Logit Model for 'Partner - OnPremise Product'\n",
+            "                           Logit Regression Results                           \n",
+            "==============================================================================\n",
+            "Dep. Variable:           sale_success   No. Observations:                  625\n",
+            "Model:                          Logit   Df Residuals:                      623\n",
+            "Method:                           MLE   Df Model:                            1\n",
+            "Date:                Sun, 02 Jun 2024   Pseudo R-squ.:                 0.02694\n",
+            "Time:                        17:48:18   Log-Likelihood:                -413.57\n",
+            "converged:                       True   LL-Null:                       -425.02\n",
+            "Covariance Type:            nonrobust   LLR p-value:                 1.710e-06\n",
+            "===================================================================================\n",
+            "                      coef    std err          z      P>|z|      [0.025      0.975]\n",
+            "-----------------------------------------------------------------------------------\n",
+            "Intercept          -0.7308      0.136     -5.358      0.000      -0.998      -0.463\n",
+            "Discount_Amount  1.967e-05   5.69e-06      3.457      0.001    8.52e-06    3.08e-05\n",
+            "===================================================================================\n"
+          ]
+        }
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Interpretation:\n",
+        "\n",
+        "• Intercept: The log-odds of sale success for Partner - OnPremise Product when Discount_Amount is zero.\n",
+        "\n",
+        "• Discount_Amount: The coefficient is positive and statistically significant (P>|z| = 0.001), indicating that higher discounts are associated with higher odds of sale success for this product type."
+      ],
+      "metadata": {
+        "id": "EipYiTIqIIx_"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "## Summary\n",
+        "\n",
+        "• Overall Model: Different product types show varying effects on sale success. Discounts generally increase the odds of sale success.\n",
+        "\n",
+        "• Direct - OnPremise Product: Discounts do not significantly impact sale success.\n",
+        "\n",
+        "• Partner - Cloud Product: Discounts significantly increase the odds of sale success.\n",
+        "\n",
+        "• Partner - OnPremise Product: Discounts significantly increase the odds of sale success."
+      ],
+      "metadata": {
+        "id": "NuBVQvo5IXOf"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Expected Revenue Improvement Calculations\n",
+        "\n",
+        "### 1. Expected Revenue Improvement Over Un-optimized Discounts\n",
+        "This measures the improvement in expected profits when using the optimized discounts compared to the actual (unoptimized) discounts in the holdout sample.\n",
+        "\n",
+        "### 2. Expected Revenue Improvement Over Optimized Discounts\n",
+        "This measures the improvement in expected profits when using the optimized discounts based on your estimation results compared to the actual (unoptimized) discounts in the holdout sample.\n",
+        "\n",
+        "The expected profit for a bid can be calculated using:\n",
+        "$$ \\pi(P) = (P - C) \\cdot Q \\cdot \\rho(P) $$\n",
+        "where:\n",
+        "- \\( P \\) = Price\n",
+        "- \\( C \\) = Cost (assumed to be zero in this example)\n",
+        "- \\( Q \\) = Quantity\n",
+        "- \\( \\rho(P) \\) = Probability of winning the bid at price \\( P \\)\n",
+        "\n",
+        "### Formulas for Improvement Metrics\n",
+        "\n",
+        "**Expected Profit at Original (Unoptimized) Price:**\n",
+        "$$ \\text{Expected Profit (Unoptimized)} = (P_{\\text{original}} - C) \\cdot Q \\cdot \\rho(P_{\\text{original}}) $$\n",
+        "\n",
+        "\n",
+        "**Expected Profit at Optimized Price:**\n",
+        "$$ \\text{Expected Profit (Optimized)} = (P_{\\text{optimized}} - C) \\cdot Q \\cdot \\rho(P_{\\text{optimized}}) $$\n",
+        "\n",
+        "\n",
+        "**Percent Improvement in Expected Profit over Unoptimized Actual Profit:**\n",
+        "$$ \\text{Percent Improvement (Actual)} = \\frac{\\text{Expected Profit (Optimized)} - \\text{Actual Profit (Unoptimized)}}{\\text{Actual Profit (Unoptimized)}} $$\n",
+        "\n",
+        "\n",
+        "**Percent Improvement in Expected Profit over Unoptimized Expected Profit:**\n",
+        "$$ \\text{Percent Improvement (Expected)} = \\frac{\\text{Expected Profit (Optimized)} - \\text{Expected Profit (Unoptimized)}}{\\text{Expected Profit (Unoptimized)}} $$\n"
+      ],
+      "metadata": {
+        "id": "_EOxRJxfJ7S2"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "import numpy as np\n",
+        "\n",
+        "# Assuming we have a logit model fitted and we can predict probabilities\n",
+        "# Let's assume we have the following functions to predict probabilities:\n",
+        "# logit_model.predict_proba(X) will give us the probabilities\n",
+        "\n",
+        "# Example data (replace with your actual holdout sample data)\n",
+        "holdout_data = test_data.copy()\n",
+        "\n",
+        "# Assuming `logit_model` is our fitted model\n",
+        "# Predict probabilities for original prices\n",
+        "X_holdout_original = holdout_data[predictors]\n",
+        "X_holdout_original = sm.add_constant(X_holdout_original)\n",
+        "holdout_data['prob_original'] = logit_model.predict(X_holdout_original)\n",
+        "\n",
+        "# Calculate expected profit for original prices\n",
+        "holdout_data['expected_profit_original'] = holdout_data.apply(\n",
+        "    lambda row: (row['Amount'] - 0) * row['prob_original'], axis=1)\n",
+        "\n",
+        "# Now optimize the prices (this is an example, you'll need an optimization function)\n",
+        "# For simplicity, assume optimized prices are 10% higher than original\n",
+        "holdout_data['optimized_price'] = holdout_data['Amount'] * 1.10\n",
+        "\n",
+        "# Predict probabilities for optimized prices\n",
+        "holdout_data['prob_optimized'] = logit_model.predict(sm.add_constant(holdout_data[predictors]))\n",
+        "\n",
+        "# Calculate expected profit for optimized prices\n",
+        "holdout_data['expected_profit_optimized'] = holdout_data.apply(\n",
+        "    lambda row: (row['optimized_price'] - 0) * row['prob_optimized'], axis=1)\n",
+        "\n",
+        "# Calculate actual profit for original prices\n",
+        "holdout_data['actual_profit_original'] = holdout_data.apply(\n",
+        "    lambda row: (row['Amount'] - 0) if row['Won'] else 0, axis=1)\n",
+        "\n",
+        "# Calculate percent improvement in expected profits over actual profits\n",
+        "holdout_data['percent_improvement_actual'] = holdout_data.apply(\n",
+        "    lambda row: (row['expected_profit_optimized'] - row['actual_profit_original']) / row['actual_profit_original']\n",
+        "    if row['actual_profit_original'] != 0 else 0, axis=1)\n",
+        "\n",
+        "# Calculate percent improvement in expected profits over unoptimized expected profits\n",
+        "holdout_data['percent_improvement_expected'] = holdout_data.apply(\n",
+        "    lambda row: (row['expected_profit_optimized'] - row['expected_profit_original']) / row['expected_profit_original']\n",
+        "    if row['expected_profit_original'] != 0 else 0, axis=1)\n",
+        "\n",
+        "# Summarize the improvements\n",
+        "total_improvement_actual = holdout_data['percent_improvement_actual'].sum()\n",
+        "total_improvement_expected = holdout_data['percent_improvement_expected'].sum()\n",
+        "\n",
+        "print(f\"Total Percent Improvement in Actual Profits: {total_improvement_actual:.2f}%\")\n",
+        "print(f\"Total Percent Improvement in Expected Profits: {total_improvement_expected:.2f}%\")\n"
+      ],
+      "metadata": {
+        "colab": {
+          "base_uri": "https://localhost:8080/",
+          "height": 668
+        },
+        "id": "XBDWffOMJyb7",
+        "outputId": "a5ae627c-8664-4769-b341-0eb0d6bdbdfa"
+      },
+      "execution_count": 48,
+      "outputs": [
+        {
+          "output_type": "error",
+          "ename": "PatsyError",
+          "evalue": "predict requires that you use a DataFrame when predicting from a model\nthat was created using the formula api.\n\nThe original error message returned by patsy is:\nError evaluating factor: NameError: name 'Amount' is not defined\n    sale_success ~ Discount_Amount + Amount + Quarter + Billing_Plan + C(Type)\n                                     ^^^^^^",
+          "traceback": [
+            "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+            "\u001b[0;31mNameError\u001b[0m                                 Traceback (most recent call last)",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/compat.py\u001b[0m in \u001b[0;36mcall_and_wrap_exc\u001b[0;34m(msg, origin, f, *args, **kwargs)\u001b[0m\n\u001b[1;32m     35\u001b[0m     \u001b[0;32mtry\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 36\u001b[0;31m         \u001b[0;32mreturn\u001b[0m \u001b[0mf\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m*\u001b[0m\u001b[0margs\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m**\u001b[0m\u001b[0mkwargs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     37\u001b[0m     \u001b[0;32mexcept\u001b[0m \u001b[0mException\u001b[0m \u001b[0;32mas\u001b[0m \u001b[0me\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/eval.py\u001b[0m in \u001b[0;36meval\u001b[0;34m(self, expr, source_name, inner_namespace)\u001b[0m\n\u001b[1;32m    168\u001b[0m         \u001b[0mcode\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mcompile\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mexpr\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0msource_name\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m\"eval\"\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mflags\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;32mFalse\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 169\u001b[0;31m         return eval(code, {}, VarLookupDict([inner_namespace]\n\u001b[0m\u001b[1;32m    170\u001b[0m                                             + self._namespaces))\n",
+            "\u001b[0;32m<string>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m\u001b[0m\n",
+            "\u001b[0;31mNameError\u001b[0m: name 'Amount' is not defined",
+            "\nThe above exception was the direct cause of the following exception:\n",
+            "\u001b[0;31mPatsyError\u001b[0m                                Traceback (most recent call last)",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/statsmodels/base/model.py\u001b[0m in \u001b[0;36m_transform_predict_exog\u001b[0;34m(self, exog, transform)\u001b[0m\n\u001b[1;32m   1101\u001b[0m             \u001b[0;32mtry\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1102\u001b[0;31m                 \u001b[0mexog\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mdmatrix\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mdesign_info\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mexog\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mreturn_type\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m\"dataframe\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   1103\u001b[0m             \u001b[0;32mexcept\u001b[0m \u001b[0mException\u001b[0m \u001b[0;32mas\u001b[0m \u001b[0mexc\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/highlevel.py\u001b[0m in \u001b[0;36mdmatrix\u001b[0;34m(formula_like, data, eval_env, NA_action, return_type)\u001b[0m\n\u001b[1;32m    289\u001b[0m     \u001b[0meval_env\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mEvalEnvironment\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mcapture\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0meval_env\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mreference\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;36m1\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 290\u001b[0;31m     (lhs, rhs) = _do_highlevel_design(formula_like, data, eval_env,\n\u001b[0m\u001b[1;32m    291\u001b[0m                                       NA_action, return_type)\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/highlevel.py\u001b[0m in \u001b[0;36m_do_highlevel_design\u001b[0;34m(formula_like, data, eval_env, NA_action, return_type)\u001b[0m\n\u001b[1;32m    166\u001b[0m     \u001b[0;32mif\u001b[0m \u001b[0mdesign_infos\u001b[0m \u001b[0;32mis\u001b[0m \u001b[0;32mnot\u001b[0m \u001b[0;32mNone\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 167\u001b[0;31m         return build_design_matrices(design_infos, data,\n\u001b[0m\u001b[1;32m    168\u001b[0m                                      \u001b[0mNA_action\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mNA_action\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/build.py\u001b[0m in \u001b[0;36mbuild_design_matrices\u001b[0;34m(design_infos, data, NA_action, return_type, dtype)\u001b[0m\n\u001b[1;32m    887\u001b[0m             \u001b[0;32mif\u001b[0m \u001b[0mfactor_info\u001b[0m \u001b[0;32mnot\u001b[0m \u001b[0;32min\u001b[0m \u001b[0mfactor_info_to_values\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 888\u001b[0;31m                 \u001b[0mvalue\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mis_NA\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0m_eval_factor\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mfactor_info\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mdata\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mNA_action\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    889\u001b[0m                 \u001b[0mfactor_info_to_isNAs\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mfactor_info\u001b[0m\u001b[0;34m]\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mis_NA\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/build.py\u001b[0m in \u001b[0;36m_eval_factor\u001b[0;34m(factor_info, data, NA_action)\u001b[0m\n\u001b[1;32m     62\u001b[0m     \u001b[0mfactor\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mfactor_info\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mfactor\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 63\u001b[0;31m     \u001b[0mresult\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mfactor\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0meval\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mfactor_info\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mstate\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mdata\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     64\u001b[0m     \u001b[0;31m# Returns either a 2d ndarray, or a DataFrame, plus is_NA mask\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/eval.py\u001b[0m in \u001b[0;36meval\u001b[0;34m(self, memorize_state, data)\u001b[0m\n\u001b[1;32m    567\u001b[0m     \u001b[0;32mdef\u001b[0m \u001b[0meval\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mmemorize_state\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mdata\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 568\u001b[0;31m         return self._eval(memorize_state[\"eval_code\"],\n\u001b[0m\u001b[1;32m    569\u001b[0m                           \u001b[0mmemorize_state\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/eval.py\u001b[0m in \u001b[0;36m_eval\u001b[0;34m(self, code, memorize_state, data)\u001b[0m\n\u001b[1;32m    550\u001b[0m         \u001b[0minner_namespace\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mVarLookupDict\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mdata\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mmemorize_state\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m\"transforms\"\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 551\u001b[0;31m         return call_and_wrap_exc(\"Error evaluating factor\",\n\u001b[0m\u001b[1;32m    552\u001b[0m                                  \u001b[0mself\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/compat.py\u001b[0m in \u001b[0;36mcall_and_wrap_exc\u001b[0;34m(msg, origin, f, *args, **kwargs)\u001b[0m\n\u001b[1;32m     42\u001b[0m             \u001b[0;31m# Use 'exec' to hide this syntax from the Python 2 parser:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 43\u001b[0;31m             \u001b[0mexec\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m\"raise new_exc from e\"\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     44\u001b[0m         \u001b[0;32melse\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/patsy/compat.py\u001b[0m in \u001b[0;36m<module>\u001b[0;34m\u001b[0m\n",
+            "\u001b[0;31mPatsyError\u001b[0m: Error evaluating factor: NameError: name 'Amount' is not defined\n    sale_success ~ Discount_Amount + Amount + Quarter + Billing_Plan + C(Type)\n                                     ^^^^^^",
+            "\nDuring handling of the above exception, another exception occurred:\n",
+            "\u001b[0;31mPatsyError\u001b[0m                                Traceback (most recent call last)",
+            "\u001b[0;32m<ipython-input-48-bc235332d2c6>\u001b[0m in \u001b[0;36m<cell line: 14>\u001b[0;34m()\u001b[0m\n\u001b[1;32m     12\u001b[0m \u001b[0mX_holdout_original\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mholdout_data\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mpredictors\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     13\u001b[0m \u001b[0mX_holdout_original\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0msm\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0madd_constant\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mX_holdout_original\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m---> 14\u001b[0;31m \u001b[0mholdout_data\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;34m'prob_original'\u001b[0m\u001b[0;34m]\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mlogit_model\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mpredict\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mX_holdout_original\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     15\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     16\u001b[0m \u001b[0;31m# Calculate expected profit for original prices\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/statsmodels/base/model.py\u001b[0m in \u001b[0;36mpredict\u001b[0;34m(self, exog, transform, *args, **kwargs)\u001b[0m\n\u001b[1;32m   1169\u001b[0m         \u001b[0mreturned\u001b[0m \u001b[0mprediction\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1170\u001b[0m         \"\"\"\n\u001b[0;32m-> 1171\u001b[0;31m         exog, exog_index = self._transform_predict_exog(exog,\n\u001b[0m\u001b[1;32m   1172\u001b[0m                                                         transform=transform)\n\u001b[1;32m   1173\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;32m/usr/local/lib/python3.10/dist-packages/statsmodels/base/model.py\u001b[0m in \u001b[0;36m_transform_predict_exog\u001b[0;34m(self, exog, transform)\u001b[0m\n\u001b[1;32m   1107\u001b[0m                        \u001b[0;34m'\\n\\nThe original error message returned by patsy is:\\n'\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1108\u001b[0m                        '{}'.format(str(str(exc))))\n\u001b[0;32m-> 1109\u001b[0;31m                 \u001b[0;32mraise\u001b[0m \u001b[0mexc\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m__class__\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mmsg\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   1110\u001b[0m             \u001b[0;32mif\u001b[0m \u001b[0morig_exog_len\u001b[0m \u001b[0;34m>\u001b[0m \u001b[0mlen\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mexog\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;32mand\u001b[0m \u001b[0;32mnot\u001b[0m \u001b[0mis_dict\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1111\u001b[0m                 \u001b[0;32mif\u001b[0m \u001b[0mexog_index\u001b[0m \u001b[0;32mis\u001b[0m \u001b[0;32mNone\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+            "\u001b[0;31mPatsyError\u001b[0m: predict requires that you use a DataFrame when predicting from a model\nthat was created using the formula api.\n\nThe original error message returned by patsy is:\nError evaluating factor: NameError: name 'Amount' is not defined\n    sale_success ~ Discount_Amount + Amount + Quarter + Billing_Plan + C(Type)\n                                     ^^^^^^"
+          ]
+        }
+      ]
+    }
+  ]
+}
